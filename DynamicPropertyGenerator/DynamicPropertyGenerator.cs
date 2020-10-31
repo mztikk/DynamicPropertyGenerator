@@ -83,7 +83,7 @@ namespace DynamicPropertyGenerator
                         caseStatements.Add(caseStatement);
 
                     }
-                    setBodyWriter.WriteSwitchCaseStatement(new(
+                    setBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
                         setArguments[1].Name,
                         caseStatements,
                         $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
