@@ -22,8 +22,7 @@ namespace DynamicPropertyGenerator.Extensions
         {
             foreach (IPropertySymbol item in left.GetAccessibleProperties())
             {
-                bool matching = right.GetAccessibleProperties().Any(x => x.Name == item.Name && SymbolEqualityComparer.Default.Equals(x.Type, item.Type));
-                if (matching)
+                if (right.GetAccessibleProperties().Any(x => x.Name == item.Name && SymbolEqualityComparer.Default.Equals(x.Type, item.Type)))
                 {
                     return true;
                 }
