@@ -19,12 +19,12 @@
         {
             //HelloWorldGenerated.HelloWorldClass.HelloWorld();
             var testa = new TestA { StringA = "This is StringA!", IntA = 20 };
-            System.Console.WriteLine(DynamicProperty.Get(testa, "StringA"));
-            System.Console.WriteLine(DynamicProperty.Get(testa, "IntA"));
-            DynamicProperty.Set(testa, "StringA", "DynamicProperty is awesome!");
-            DynamicProperty.Set(testa, "IntA", "50");
-            System.Console.WriteLine(DynamicProperty.Get(testa, "StringA"));
-            System.Console.WriteLine(DynamicProperty.Get(testa, "IntA"));
+            System.Console.WriteLine(testa.DynamicGet("StringA"));
+            System.Console.WriteLine(testa.DynamicGet("IntA"));
+            testa.DynamicSet("StringA", "DynamicProperty is awesome!");
+            testa.DynamicSet("IntA", "50");
+            System.Console.WriteLine(testa.DynamicGet("StringA"));
+            System.Console.WriteLine(testa.DynamicGet("IntA"));
         }
     }
 }

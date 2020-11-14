@@ -14,23 +14,33 @@ namespace DynamicPropertyGenerator
     {
         public void Execute(GeneratorExecutionContext context)
         {
-            Class c = new Class("DynamicProperty")
-                .SetNamespace(context.Compilation.AssemblyName)
-                .SetStatic(true)
-                .WithAccessibility(Accessibility.Public);
+            string ns = context.Compilation.AssemblyName ?? context.Compilation.ToString();
+
+            //Class c = new Class("DynamicProperty")
+            //    .SetNamespace(context.Compilation.AssemblyName)
+            //    .SetStatic(true)
+            //    .WithAccessibility(Accessibility.Public);
 
             //Debugger.Launch();
 
             foreach (INamedTypeSymbol type in GetAllPublicTypesWithProperties(context.Compilation))
             {
+                string fullTypeName = type.ToString();
+                string className = $"DynamicProperty_{fullTypeName.Replace('.', '_')}_Extensions";
+
+                Class c = new Class(className)
+                    .SetStatic(true)
+                    .SetNamespace(ns)
+                    .WithAccessibility(Accessibility.Internal);
+
                 IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
 
                 var getArguments = new List<Argument> {
-                    new(type.ToString(), "obj"),
+                    new(type.ToString(), "obj", true),
                     new("string", "name"),
                 };
 
-                var getMethod = new Method(Accessibility.Public, true, false, "object", "Get", getArguments, (getBodyWriter) =>
+                var getMethod = new Method(Accessibility.Public, true, false, "object", "DynamicGet", getArguments, (getBodyWriter) =>
                 {
                     var caseStatements = new List<CaseStatement>();
 
@@ -52,12 +62,12 @@ namespace DynamicPropertyGenerator
                 c.WithMethod(getMethod);
 
                 var setArguments = new List<Argument> {
-                    new(type.ToString(), "obj"),
+                    new(type.ToString(), "obj", true),
                     new("string", "name"),
                     new("string", "value"),
                 };
 
-                var setMethod = new Method(Accessibility.Public, true, false, "void", "Set", setArguments, (setBodyWriter) =>
+                var setMethod = new Method(Accessibility.Public, true, false, "void", "DynamicSet", setArguments, (setBodyWriter) =>
                 {
                     var caseStatements = new List<CaseStatement>();
                     foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
@@ -90,11 +100,11 @@ namespace DynamicPropertyGenerator
                 });
 
                 c.WithMethod(setMethod);
+
+                string str = ClassWriter.Write(c);
+
+                context.AddSource(className, SourceText.From(str, Encoding.UTF8));
             }
-
-            string str = ClassWriter.Write(c);
-
-            context.AddSource("DynamicProperty", SourceText.From(str, Encoding.UTF8));
         }
 
         public void Initialize(GeneratorInitializationContext context)
@@ -138,13 +148,16 @@ namespace DynamicPropertyGenerator
 
                 foreach (ISymbol member in item.GetMembers())
                 {
-                    if (member is INamespaceOrTypeSymbol child && child.DeclaredAccessibility == Accessibility.Public && (member is not INamedTypeSymbol typeSymbol || typeSymbol.TypeParameters.Length == 0))
+                    if (member is INamespaceOrTypeSymbol child
+                        && child.DeclaredAccessibility == Accessibility.Public
+                        && (member is not INamedTypeSymbol typeSymbol || typeSymbol.TypeParameters.Length == 0))
                     {
                         stack.Push(child);
                     }
                 }
             }
         }
+
 
         private static IEnumerable<INamedTypeSymbol> GetAllTypes(params INamespaceOrTypeSymbol[] symbols)
         {

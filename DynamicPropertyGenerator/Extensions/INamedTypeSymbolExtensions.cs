@@ -6,17 +6,38 @@ namespace DynamicPropertyGenerator.Extensions
 {
     public static class INamedTypeSymbolExtensions
     {
-        public static IEnumerable<IPropertySymbol> GetAccessibleProperties(this INamedTypeSymbol symbol) => symbol.GetMembers()
-                                                                                                        .OfType<IPropertySymbol>()
-                                                                                                        .Where(x => !x.IsReadOnly
-                                                                                                                    && x.SetMethod is { }
-                                                                                                                    && x.SetMethod.DeclaredAccessibility == Accessibility.Public
-                                                                                                                    && x.GetMethod is { }
-                                                                                                                    && x.GetMethod.DeclaredAccessibility == Accessibility.Public
-                                                                                                                    && !x.IsIndexer
-                                                                                                                    && !x.IsStatic
-                                                                                                                    && x.Type.TypeKind != TypeKind.Pointer
-                                                                                                                    && !x.IsObsolete());
+        public static IEnumerable<IPropertySymbol> GetAccessibleProperties(this INamedTypeSymbol symbol)
+        {
+            INamedTypeSymbol toGet = symbol;
+            while (toGet is { })
+            {
+                foreach (IPropertySymbol item in toGet.GetMembers()
+                                                       .OfType<IPropertySymbol>()
+                                                       .Where(x => !x.IsReadOnly
+                                                           && x.SetMethod is { }
+                                                           && x.SetMethod.DeclaredAccessibility == Accessibility.Public
+                                                           && x.GetMethod is { }
+                                                           && x.GetMethod.DeclaredAccessibility == Accessibility.Public
+                                                           && !x.SetMethod.IsInitOnly
+                                                           && !x.IsIndexer
+                                                           && !x.IsStatic
+                                                           && x.Type.TypeKind != TypeKind.Pointer
+                                                           && !x.IsOverride
+                                                           && !x.IsObsolete()))
+                {
+                    yield return item;
+                }
+
+                if (toGet.BaseType is null || toGet.BaseType.Name == "Object")
+                {
+                    toGet = null;
+                }
+                else
+                {
+                    toGet = toGet.BaseType;
+                }
+            }
+        }
 
         public static bool HasMatchingProperties(this INamedTypeSymbol left, INamedTypeSymbol right)
         {
