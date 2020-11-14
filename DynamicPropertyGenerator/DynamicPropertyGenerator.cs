@@ -38,25 +38,41 @@ namespace DynamicPropertyGenerator
                 var getArguments = new List<Argument> {
                     new(type.ToString(), "obj", true),
                     new("string", "name"),
+                    new("bool", "ignoreCasing", "false"),
                 };
 
                 var getMethod = new Method(Accessibility.Public, true, false, "object", "DynamicGet", getArguments, (getBodyWriter) =>
                 {
-                    var caseStatements = new List<CaseStatement>();
+                    string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
 
-                    foreach (IPropertySymbol prop in properties)
-                    {
-                        var caseStatement = new CaseStatement($"\"{prop.Name}\"", (caseWriter) =>
+                    var ifCasing = new IfStatement(new If[]{ new If("ignoreCasing",
+                        (ifBodyWriter) =>
                         {
-                            caseWriter.WriteReturn($"{getArguments[0].Name}.{prop.Name}");
-                        });
-                        caseStatements.Add(caseStatement);
-                    }
+                            var caseExpressions = new List<CaseExpression>();
 
-                    getBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
-                        getArguments[1].Name,
-                        caseStatements,
-                        $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\");"));
+                            foreach (IPropertySymbol prop in properties)
+                            {
+                                var caseExpression = new CaseExpression($"\"{prop.Name.ToLower()}\"", $"{getArguments[0].Name}.{prop.Name}");
+                                caseExpressions.Add(caseExpression);
+                            }
+
+                            ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{getArguments[1].Name}.ToLower()", caseExpressions, noPropertyException));
+
+                        }) },
+                        (elseBodyWriter) =>
+                        {
+                            var caseStatements = new List<CaseExpression>();
+
+                            foreach (IPropertySymbol prop in properties)
+                            {
+                                var caseStatement = new CaseExpression($"\"{prop.Name}\"", $"{getArguments[0].Name}.{prop.Name}");
+                                caseStatements.Add(caseStatement);
+                            }
+
+                            elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(getArguments[1].Name, caseStatements, noPropertyException));
+                        });
+
+                    getBodyWriter.WriteIf(ifCasing);
                 });
 
                 c.WithMethod(getMethod);
@@ -65,6 +81,7 @@ namespace DynamicPropertyGenerator
                     new(type.ToString(), "obj", true),
                     new("string", "name"),
                     new("string", "value"),
+                    //new("bool", "ignoreCasing", "false"),
                 };
 
                 var setMethod = new Method(Accessibility.Public, true, false, "void", "DynamicSet", setArguments, (setBodyWriter) =>
@@ -76,7 +93,6 @@ namespace DynamicPropertyGenerator
 
                         var caseStatement = new CaseStatement($"\"{prop.Name}\"", (caseWriter) =>
                         {
-                            //caseWriter.WriteReturn($"{setArguments[0].Name}.{prop.Name}");
                             string value;
                             if (prop.Type.Name == "String")
                             {
