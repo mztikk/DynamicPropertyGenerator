@@ -45,7 +45,7 @@ namespace DynamicPropertyGenerator
                 {
                     string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
 
-                    var ifCasing = new IfStatement(new If[]{ new If("ignoreCasing",
+                    var ifCasing = new IfStatement(new If[]{ new If(getArguments[2].Name,
                         (ifBodyWriter) =>
                         {
                             var caseExpressions = new List<CaseExpression>();
@@ -81,38 +81,74 @@ namespace DynamicPropertyGenerator
                     new(type.ToString(), "obj", true),
                     new("string", "name"),
                     new("string", "value"),
-                    //new("bool", "ignoreCasing", "false"),
+                    new("bool", "ignoreCasing", "false"),
                 };
 
                 var setMethod = new Method(Accessibility.Public, true, false, "void", "DynamicSet", setArguments, (setBodyWriter) =>
                 {
-                    var caseStatements = new List<CaseStatement>();
-                    foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
-                    {
-                        string fullTypeName = prop.Type.ToString().TrimEnd('?');
-
-                        var caseStatement = new CaseStatement($"\"{prop.Name}\"", (caseWriter) =>
+                    var ifCasing = new IfStatement(new If[] { new(setArguments[3].Name,
+                        (ifBodyWriter) =>
                         {
-                            string value;
-                            if (prop.Type.Name == "String")
+                            var caseStatements = new List<CaseStatement>();
+                            foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
                             {
-                                value = setArguments[2].Name;
-                            }
-                            else
-                            {
-                                value = $"{fullTypeName}.Parse({setArguments[2].Name})";
-                            }
+                                string fullTypeName = prop.Type.ToString().TrimEnd('?');
 
-                            caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
-                            caseWriter.WriteBreak();
+                                var caseStatement = new CaseStatement($"\"{prop.Name.ToLower()}\"", (caseWriter) =>
+                                {
+                                    string value;
+                                    if (prop.Type.Name == "String")
+                                    {
+                                        value = setArguments[2].Name;
+                                    }
+                                    else
+                                    {
+                                        value = $"{fullTypeName}.Parse({setArguments[2].Name})";
+                                    }
+
+                                    caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
+                                    caseWriter.WriteBreak();
+                                });
+                                caseStatements.Add(caseStatement);
+
+                            }
+                            ifBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
+                                $"{setArguments[1].Name}.ToLower()",
+                                caseStatements,
+                                $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
+                        }) },
+                        (elseBodyWriter) =>
+                        {
+                            var caseStatements = new List<CaseStatement>();
+                            foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
+                            {
+                                string fullTypeName = prop.Type.ToString().TrimEnd('?');
+
+                                var caseStatement = new CaseStatement($"\"{prop.Name}\"", (caseWriter) =>
+                                {
+                                    string value;
+                                    if (prop.Type.Name == "String")
+                                    {
+                                        value = setArguments[2].Name;
+                                    }
+                                    else
+                                    {
+                                        value = $"{fullTypeName}.Parse({setArguments[2].Name})";
+                                    }
+
+                                    caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
+                                    caseWriter.WriteBreak();
+                                });
+                                caseStatements.Add(caseStatement);
+
+                            }
+                            elseBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
+                                setArguments[1].Name,
+                                caseStatements,
+                                $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
                         });
-                        caseStatements.Add(caseStatement);
 
-                    }
-                    setBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
-                        setArguments[1].Name,
-                        caseStatements,
-                        $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
+                    setBodyWriter.WriteIf(ifCasing);
                 });
 
                 c.WithMethod(setMethod);

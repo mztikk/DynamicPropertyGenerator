@@ -19,7 +19,7 @@
         {
             //HelloWorldGenerated.HelloWorldClass.HelloWorld();
             var testa = new TestA { StringA = "This is StringA!", IntA = 20 };
-            System.Console.WriteLine(testa.DynamicGet("StringA"));
+            System.Console.WriteLine(testa.DynamicGet("stringa", true));
             System.Console.WriteLine(testa.DynamicGet("IntA"));
             testa.DynamicSet("StringA", "DynamicProperty is awesome!");
             testa.DynamicSet("IntA", "50");
