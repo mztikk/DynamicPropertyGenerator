@@ -55,19 +55,19 @@ namespace DynamicPropertyGenerator
             {
                 string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
 
-                var ifCasing = new IfStatement(new If[]{ new If(getArguments[2].Name,
+                var ifCasing = new IfStatement(new If(getArguments[2].Name,
                     (ifBodyWriter) =>
                     {
-                            var caseExpressions = new List<CaseExpression>();
+                        var caseExpressions = new List<CaseExpression>();
 
-                            foreach (IPropertySymbol prop in properties)
-                            {
-                                var caseExpression = new CaseExpression($"\"{prop.Name.ToLower()}\"", $"{getArguments[0].Name}.{prop.Name}");
-                                caseExpressions.Add(caseExpression);
-                            }
+                        foreach (IPropertySymbol prop in properties)
+                        {
+                            var caseExpression = new CaseExpression($"\"{prop.Name.ToLower()}\"", $"{getArguments[0].Name}.{prop.Name}");
+                            caseExpressions.Add(caseExpression);
+                        }
 
-                            ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{getArguments[1].Name}.ToLower()", caseExpressions, noPropertyException));
-                    }) },
+                        ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{getArguments[1].Name}.ToLower()", caseExpressions, noPropertyException));
+                    }),
                     (elseBodyWriter) =>
                     {
                         var caseStatements = new List<CaseExpression>();
@@ -163,7 +163,7 @@ namespace DynamicPropertyGenerator
 
             var setMethod = new Method(Accessibility.Public, true, false, "void", "DynamicSet", setArguments, (setBodyWriter) =>
             {
-                var ifCasing = new IfStatement(new If[] { new(setArguments[3].Name, ifBody) }, elseBody);
+                var ifCasing = new IfStatement(new If(setArguments[3].Name, ifBody), elseBody);
 
                 setBodyWriter.WriteIf(ifCasing);
             });
