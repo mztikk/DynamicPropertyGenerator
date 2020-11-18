@@ -31,23 +31,33 @@ namespace DynamicPropertyGenerator
                 Class c = new Class(className)
                     .SetStatic(true)
                     .SetNamespace(ns)
-                    .WithAccessibility(Accessibility.Internal);
+                    .WithAccessibility(Accessibility.Internal)
+                    .WithMethod(BuildGetMethod(type))
+                    .WithMethod(BuildSetMethod(type));
 
-                IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
+                string str = ClassWriter.Write(c);
 
-                var getArguments = new List<Argument> {
-                    new(type.ToString(), "obj", true),
-                    new("string", "name"),
-                    new("bool", "ignoreCasing", "false"),
-                };
+                context.AddSource(className, SourceText.From(str, Encoding.UTF8));
+            }
+        }
 
-                var getMethod = new Method(Accessibility.Public, true, false, "object", "DynamicGet", getArguments, (getBodyWriter) =>
-                {
-                    string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
+        private static Method BuildGetMethod(INamedTypeSymbol type)
+        {
+            IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
 
-                    var ifCasing = new IfStatement(new If[]{ new If(getArguments[2].Name,
-                        (ifBodyWriter) =>
-                        {
+            var getArguments = new List<Argument> {
+                new(type.ToString(), "obj", true),
+                new("string", "name"),
+                new("bool", "ignoreCasing", "false"),
+            };
+
+            var getMethod = new Method(Accessibility.Public, true, false, "object", "DynamicGet", getArguments, (getBodyWriter) =>
+            {
+                string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
+
+                var ifCasing = new IfStatement(new If[]{ new If(getArguments[2].Name,
+                    (ifBodyWriter) =>
+                    {
                             var caseExpressions = new List<CaseExpression>();
 
                             foreach (IPropertySymbol prop in properties)
@@ -57,106 +67,108 @@ namespace DynamicPropertyGenerator
                             }
 
                             ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{getArguments[1].Name}.ToLower()", caseExpressions, noPropertyException));
+                    }) },
+                    (elseBodyWriter) =>
+                    {
+                        var caseStatements = new List<CaseExpression>();
 
-                        }) },
-                        (elseBodyWriter) =>
+                        foreach (IPropertySymbol prop in properties)
                         {
-                            var caseStatements = new List<CaseExpression>();
+                            var caseStatement = new CaseExpression($"\"{prop.Name}\"", $"{getArguments[0].Name}.{prop.Name}");
+                            caseStatements.Add(caseStatement);
+                        }
 
-                            foreach (IPropertySymbol prop in properties)
-                            {
-                                var caseStatement = new CaseExpression($"\"{prop.Name}\"", $"{getArguments[0].Name}.{prop.Name}");
-                                caseStatements.Add(caseStatement);
-                            }
+                        elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(getArguments[1].Name, caseStatements, noPropertyException));
+                    });
 
-                            elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(getArguments[1].Name, caseStatements, noPropertyException));
-                        });
+                getBodyWriter.WriteIf(ifCasing);
+            });
 
-                    getBodyWriter.WriteIf(ifCasing);
-                });
+            return getMethod;
+        }
 
-                c.WithMethod(getMethod);
+        private static Method BuildSetMethod(INamedTypeSymbol type)
+        {
+            IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
 
-                var setArguments = new List<Argument> {
-                    new(type.ToString(), "obj", true),
-                    new("string", "name"),
-                    new("string", "value"),
-                    new("bool", "ignoreCasing", "false"),
-                };
+            var setArguments = new List<Argument> {
+                new(type.ToString(), "obj", true),
+                new("string", "name"),
+                new("string", "value"),
+                new("bool", "ignoreCasing", "false"),
+            };
 
-                var setMethod = new Method(Accessibility.Public, true, false, "void", "DynamicSet", setArguments, (setBodyWriter) =>
+            void ifBody(BodyWriter ifBodyWriter)
+            {
+                var caseStatements = new List<CaseStatement>();
+                foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
                 {
-                    var ifCasing = new IfStatement(new If[] { new(setArguments[3].Name,
-                        (ifBodyWriter) =>
+                    string fullTypeName = prop.Type.ToString().TrimEnd('?');
+
+                    var caseStatement = new CaseStatement($"\"{prop.Name.ToLower()}\"", (caseWriter) =>
+                    {
+                        string value;
+                        if (prop.Type.Name == "String")
                         {
-                            var caseStatements = new List<CaseStatement>();
-                            foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
-                            {
-                                string fullTypeName = prop.Type.ToString().TrimEnd('?');
-
-                                var caseStatement = new CaseStatement($"\"{prop.Name.ToLower()}\"", (caseWriter) =>
-                                {
-                                    string value;
-                                    if (prop.Type.Name == "String")
-                                    {
-                                        value = setArguments[2].Name;
-                                    }
-                                    else
-                                    {
-                                        value = $"{fullTypeName}.Parse({setArguments[2].Name})";
-                                    }
-
-                                    caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
-                                    caseWriter.WriteBreak();
-                                });
-                                caseStatements.Add(caseStatement);
-
-                            }
-                            ifBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
-                                $"{setArguments[1].Name}.ToLower()",
-                                caseStatements,
-                                $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
-                        }) },
-                        (elseBodyWriter) =>
+                            value = setArguments[2].Name;
+                        }
+                        else
                         {
-                            var caseStatements = new List<CaseStatement>();
-                            foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
-                            {
-                                string fullTypeName = prop.Type.ToString().TrimEnd('?');
+                            value = $"{fullTypeName}.Parse({setArguments[2].Name})";
+                        }
 
-                                var caseStatement = new CaseStatement($"\"{prop.Name}\"", (caseWriter) =>
-                                {
-                                    string value;
-                                    if (prop.Type.Name == "String")
-                                    {
-                                        value = setArguments[2].Name;
-                                    }
-                                    else
-                                    {
-                                        value = $"{fullTypeName}.Parse({setArguments[2].Name})";
-                                    }
+                        caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
+                        caseWriter.WriteBreak();
+                    });
+                    caseStatements.Add(caseStatement);
+                }
 
-                                    caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
-                                    caseWriter.WriteBreak();
-                                });
-                                caseStatements.Add(caseStatement);
-
-                            }
-                            elseBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
-                                setArguments[1].Name,
-                                caseStatements,
-                                $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
-                        });
-
-                    setBodyWriter.WriteIf(ifCasing);
-                });
-
-                c.WithMethod(setMethod);
-
-                string str = ClassWriter.Write(c);
-
-                context.AddSource(className, SourceText.From(str, Encoding.UTF8));
+                ifBodyWriter.WriteSwitchCaseStatement(
+                    new SwitchCaseStatement(
+                        $"{setArguments[1].Name}.ToLower()",
+                        caseStatements,
+                        $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
             }
+
+            void elseBody(BodyWriter elseBodyWriter)
+            {
+                var caseStatements = new List<CaseStatement>();
+                foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
+                {
+                    string fullTypeName = prop.Type.ToString().TrimEnd('?');
+
+                    var caseStatement = new CaseStatement($"\"{prop.Name}\"", (caseWriter) =>
+                    {
+                        string value;
+                        if (prop.Type.Name == "String")
+                        {
+                            value = setArguments[2].Name;
+                        }
+                        else
+                        {
+                            value = $"{fullTypeName}.Parse({setArguments[2].Name})";
+                        }
+
+                        caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
+                        caseWriter.WriteBreak();
+                    });
+                    caseStatements.Add(caseStatement);
+
+                }
+
+                elseBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
+                    setArguments[1].Name, caseStatements,
+                    $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
+            }
+
+            var setMethod = new Method(Accessibility.Public, true, false, "void", "DynamicSet", setArguments, (setBodyWriter) =>
+            {
+                var ifCasing = new IfStatement(new If[] { new(setArguments[3].Name, ifBody) }, elseBody);
+
+                setBodyWriter.WriteIf(ifCasing);
+            });
+
+            return setMethod;
         }
 
         public void Initialize(GeneratorInitializationContext context)
