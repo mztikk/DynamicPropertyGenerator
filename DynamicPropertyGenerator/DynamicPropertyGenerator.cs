@@ -3,6 +3,8 @@ using System.Linq;
 using System.Text;
 using DynamicPropertyGenerator.Extensions;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using Sharpie;
 using Sharpie.Writer;
@@ -16,42 +18,57 @@ namespace DynamicPropertyGenerator
         {
             string ns = context.Compilation.AssemblyName ?? context.Compilation.ToString();
 
-            //Class c = new Class("DynamicProperty")
-            //    .SetNamespace(context.Compilation.AssemblyName)
-            //    .SetStatic(true)
-            //    .WithAccessibility(Accessibility.Public);
+            Compilation compilation = GetStubCompilation(context);
+            INamedTypeSymbol stubClassType = compilation.GetTypeByMetadataName($"{ns}.DynamicProperty");
 
-            //Debugger.Launch();
+            IEnumerable<ITypeSymbol> calls = GetStubCalls(compilation, stubClassType);
 
-            foreach (INamedTypeSymbol type in GetAllPublicTypesWithProperties(context.Compilation))
+            string className = $"DynamicProperty";
+
+            Class c = new Class(className)
+                .SetStatic(true)
+                .SetNamespace(ns)
+                .WithAccessibility(Accessibility.Internal);
+
+            var generatedTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+
+            if (calls.Any())
             {
-                string fullTypeName = type.ToString();
-                string className = $"DynamicProperty_{fullTypeName.Replace('.', '_')}_Extensions";
+                foreach (ITypeSymbol type in calls)
+                {
+                    if (generatedTypes.Contains(type))
+                    {
+                        continue;
+                    }
 
-                Class c = new Class(className)
-                    .SetStatic(true)
-                    .SetNamespace(ns)
-                    .WithAccessibility(Accessibility.Internal)
-                    .WithMethod(BuildGetMethod(type))
-                    .WithMethod(BuildSetMethod(type));
+                    c = c.WithMethod(BuildGetMethod(type))
+                     .WithMethod(BuildSetMethod(type));
+
+                    generatedTypes.Add(type);
+                }
 
                 string str = ClassWriter.Write(c);
 
                 context.AddSource(className, SourceText.From(str, Encoding.UTF8));
             }
+            else
+            {
+                Class stubClass = StubClass(compilation);
+                context.AddSource(stubClass.ClassName, SourceText.From(ClassWriter.Write(stubClass), Encoding.UTF8));
+            }
         }
 
-        private static Method BuildGetMethod(INamedTypeSymbol type)
+        private static Method BuildGetMethod(ITypeSymbol type)
         {
             IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
 
             var getArguments = new List<Argument> {
-                new(type.ToString(), "obj", true),
+                new(type.ToString(), "obj"),
                 new("string", "name"),
                 new("bool", "ignoreCasing", "false"),
             };
 
-            var getMethod = new Method(Accessibility.Public, true, false, "object", "DynamicGet", getArguments, (getBodyWriter) =>
+            var getMethod = new Method(Accessibility.Public, true, false, "object", "Get", getArguments, (getBodyWriter) =>
             {
                 string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
 
@@ -87,12 +104,12 @@ namespace DynamicPropertyGenerator
             return getMethod;
         }
 
-        private static Method BuildSetMethod(INamedTypeSymbol type)
+        private static Method BuildSetMethod(ITypeSymbol type)
         {
             IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
 
             var setArguments = new List<Argument> {
-                new(type.ToString(), "obj", true),
+                new(type.ToString(), "obj"),
                 new("string", "name"),
                 new("string", "value"),
                 new("bool", "ignoreCasing", "false"),
@@ -161,7 +178,7 @@ namespace DynamicPropertyGenerator
                     $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
             }
 
-            var setMethod = new Method(Accessibility.Public, true, false, "void", "DynamicSet", setArguments, (setBodyWriter) =>
+            var setMethod = new Method(Accessibility.Public, true, false, "void", "Set", setArguments, (setBodyWriter) =>
             {
                 var ifCasing = new IfStatement(new If(setArguments[3].Name, ifBody), elseBody);
 
@@ -171,79 +188,81 @@ namespace DynamicPropertyGenerator
             return setMethod;
         }
 
+        private static Method StubGetMethod()
+        {
+            var getArguments = new List<Argument> {
+                new("object", "obj"),
+                new("string", "name"),
+                new("bool", "ignoreCasing", "false"),
+            };
+
+            return new Method(Accessibility.Public, true, false, "object", "Get", getArguments, (getBodyWriter) =>
+            {
+                getBodyWriter.WriteReturn("new object()");
+            });
+        }
+
+        private static Method StubSetMethod()
+        {
+            var setArguments = new List<Argument> {
+                new("object", "obj"),
+                new("string", "name"),
+                new("string", "value"),
+                new("bool", "ignoreCasing", "false"),
+            };
+
+            return new Method(Accessibility.Public, true, false, "object", "Set", setArguments, string.Empty);
+        }
+
+        private static Class StubClass(Compilation compilation)
+        {
+            string ns = compilation.AssemblyName ?? compilation.ToString();
+
+            string className = $"DynamicProperty";
+
+            return new Class(className)
+                .SetStatic(true)
+                .SetNamespace(ns)
+                .WithAccessibility(Accessibility.Internal)
+                .WithMethod(StubGetMethod())
+                .WithMethod(StubSetMethod());
+        }
+
+        private static Compilation GetStubCompilation(GeneratorExecutionContext context)
+        {
+            Compilation compilation = context.Compilation;
+
+            var options = (compilation as CSharpCompilation)?.SyntaxTrees[0].Options as CSharpParseOptions;
+
+            return compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(SourceText.From(ClassWriter.Write(StubClass(compilation)), Encoding.UTF8), options));
+        }
+
+        private static IEnumerable<ITypeSymbol> GetStubCalls(Compilation compilation, INamedTypeSymbol stubClassType)
+        {
+            foreach (SyntaxTree tree in compilation.SyntaxTrees)
+            {
+                SemanticModel semanticModel = compilation.GetSemanticModel(tree);
+                foreach (InvocationExpressionSyntax invocation in tree.GetRoot().DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+                {
+                    if (semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol symbol)
+                    {
+                        if (SymbolEqualityComparer.Default.Equals(symbol.ContainingType, stubClassType))
+                        {
+                            ExpressionSyntax argument = invocation.ArgumentList.Arguments.First().Expression;
+                            ITypeSymbol argumentType = semanticModel.GetTypeInfo(argument).Type;
+                            if (argumentType is null)
+                            {
+                                continue;
+                            }
+                            yield return argumentType;
+                        }
+                    }
+                }
+            }
+        }
+
         public void Initialize(GeneratorInitializationContext context)
         {
-        }
-
-        private static IEnumerable<INamedTypeSymbol> GetAllPublicTypesWithProperties(Compilation compilation) => GetAllTypesWithProperties(compilation).Where(x => x.DeclaredAccessibility == Accessibility.Public && x.TypeParameters.Length == 0);
-        private static IEnumerable<INamedTypeSymbol> GetAllTypesWithProperties(Compilation compilation) => GetAllTypes(compilation).Where(x => !x.IsStatic && x.GetAccessibleProperties().Any());
-
-        private static IEnumerable<INamedTypeSymbol> GetAllTypes(Compilation compilation)
-        {
-            foreach (INamedTypeSymbol symbol in GetAllPublicTypes(compilation.Assembly.GlobalNamespace))
-            {
-                yield return symbol;
-            }
-
-            foreach (MetadataReference item in compilation.References)
-            {
-                if (compilation.GetAssemblyOrModuleSymbol(item) is IAssemblySymbol assemblySymbol)
-                {
-                    foreach (INamedTypeSymbol symbol in GetAllPublicTypes(assemblySymbol.GlobalNamespace))
-                    {
-                        yield return symbol;
-                    }
-                }
-            }
-        }
-
-        private static IEnumerable<INamedTypeSymbol> GetAllPublicTypes(params INamespaceOrTypeSymbol[] symbols)
-        {
-            var stack = new Stack<INamespaceOrTypeSymbol>(symbols);
-
-            while (stack.Count > 0)
-            {
-                INamespaceOrTypeSymbol item = stack.Pop();
-
-                if (item is INamedTypeSymbol type && type.DeclaredAccessibility == Accessibility.Public)
-                {
-                    yield return type;
-                }
-
-                foreach (ISymbol member in item.GetMembers())
-                {
-                    if (member is INamespaceOrTypeSymbol child
-                        && child.DeclaredAccessibility == Accessibility.Public
-                        && (member is not INamedTypeSymbol typeSymbol || typeSymbol.TypeParameters.Length == 0))
-                    {
-                        stack.Push(child);
-                    }
-                }
-            }
-        }
-
-
-        private static IEnumerable<INamedTypeSymbol> GetAllTypes(params INamespaceOrTypeSymbol[] symbols)
-        {
-            var stack = new Stack<INamespaceOrTypeSymbol>(symbols);
-
-            while (stack.Count > 0)
-            {
-                INamespaceOrTypeSymbol item = stack.Pop();
-
-                if (item is INamedTypeSymbol type)
-                {
-                    yield return type;
-                }
-
-                foreach (ISymbol member in item.GetMembers())
-                {
-                    if (member is INamespaceOrTypeSymbol child)
-                    {
-                        stack.Push(child);
-                    }
-                }
-            }
         }
     }
 }

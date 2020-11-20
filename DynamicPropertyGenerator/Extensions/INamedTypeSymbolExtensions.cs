@@ -6,9 +6,9 @@ namespace DynamicPropertyGenerator.Extensions
 {
     public static class INamedTypeSymbolExtensions
     {
-        public static IEnumerable<IPropertySymbol> GetAccessibleProperties(this INamedTypeSymbol symbol)
+        public static IEnumerable<IPropertySymbol> GetAccessibleProperties(this ITypeSymbol symbol)
         {
-            INamedTypeSymbol toGet = symbol;
+            ITypeSymbol toGet = symbol;
             while (toGet is { })
             {
                 foreach (IPropertySymbol item in toGet.GetMembers()
