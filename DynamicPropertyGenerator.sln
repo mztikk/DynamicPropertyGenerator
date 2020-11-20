@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicPropertyGenerator", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DynamicPropertyTest", "DynamicPropertyTest\DynamicPropertyTest.csproj", "{15272CD5-273E-4096-BFF7-1563A7272A26}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicPropertyTests", "DynamicPropertyTests\DynamicPropertyTests.csproj", "{AE6A960C-BD58-4DAB-B8D7-7263EB2211D1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{15272CD5-273E-4096-BFF7-1563A7272A26}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{15272CD5-273E-4096-BFF7-1563A7272A26}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{15272CD5-273E-4096-BFF7-1563A7272A26}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE6A960C-BD58-4DAB-B8D7-7263EB2211D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE6A960C-BD58-4DAB-B8D7-7263EB2211D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE6A960C-BD58-4DAB-B8D7-7263EB2211D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE6A960C-BD58-4DAB-B8D7-7263EB2211D1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

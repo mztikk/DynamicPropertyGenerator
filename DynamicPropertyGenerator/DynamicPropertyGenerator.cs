@@ -17,13 +17,20 @@ namespace DynamicPropertyGenerator
         public void Execute(GeneratorExecutionContext context)
         {
             string ns = context.Compilation.AssemblyName ?? context.Compilation.ToString();
+            string className = $"DynamicProperty";
+            string fullName = $"{ns}.{className}";
 
-            Compilation compilation = GetStubCompilation(context);
-            INamedTypeSymbol stubClassType = compilation.GetTypeByMetadataName($"{ns}.DynamicProperty");
+            Class stubClass = new Class(className)
+                .SetStatic(true)
+                .SetNamespace(ns)
+                .WithAccessibility(Accessibility.Internal)
+                .WithMethod(StubGetMethod())
+                .WithMethod(StubSetMethod());
+
+            Compilation compilation = GetStubCompilation(context, stubClass);
+            INamedTypeSymbol stubClassType = compilation.GetTypeByMetadataName(fullName);
 
             IEnumerable<ITypeSymbol> calls = GetStubCalls(compilation, stubClassType);
-
-            string className = $"DynamicProperty";
 
             Class c = new Class(className)
                 .SetStatic(true)
@@ -36,6 +43,11 @@ namespace DynamicPropertyGenerator
             {
                 foreach (ITypeSymbol type in calls)
                 {
+                    if (type is null)
+                    {
+                        continue;
+                    }
+
                     if (generatedTypes.Contains(type))
                     {
                         continue;
@@ -53,7 +65,6 @@ namespace DynamicPropertyGenerator
             }
             else
             {
-                Class stubClass = StubClass(compilation);
                 context.AddSource(stubClass.ClassName, SourceText.From(ClassWriter.Write(stubClass), Encoding.UTF8));
             }
         }
@@ -214,27 +225,13 @@ namespace DynamicPropertyGenerator
             return new Method(Accessibility.Public, true, false, "object", "Set", setArguments, string.Empty);
         }
 
-        private static Class StubClass(Compilation compilation)
-        {
-            string ns = compilation.AssemblyName ?? compilation.ToString();
-
-            string className = $"DynamicProperty";
-
-            return new Class(className)
-                .SetStatic(true)
-                .SetNamespace(ns)
-                .WithAccessibility(Accessibility.Internal)
-                .WithMethod(StubGetMethod())
-                .WithMethod(StubSetMethod());
-        }
-
-        private static Compilation GetStubCompilation(GeneratorExecutionContext context)
+        private static Compilation GetStubCompilation(GeneratorExecutionContext context, Class stubClass)
         {
             Compilation compilation = context.Compilation;
 
             var options = (compilation as CSharpCompilation)?.SyntaxTrees[0].Options as CSharpParseOptions;
 
-            return compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(SourceText.From(ClassWriter.Write(StubClass(compilation)), Encoding.UTF8), options));
+            return compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(SourceText.From(ClassWriter.Write(stubClass), Encoding.UTF8), options));
         }
 
         private static IEnumerable<ITypeSymbol> GetStubCalls(Compilation compilation, INamedTypeSymbol stubClassType)
@@ -244,7 +241,7 @@ namespace DynamicPropertyGenerator
                 SemanticModel semanticModel = compilation.GetSemanticModel(tree);
                 foreach (InvocationExpressionSyntax invocation in tree.GetRoot().DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
                 {
-                    if (semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol symbol)
+                    if (semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol symbol && symbol.ContainingType is { })
                     {
                         if (SymbolEqualityComparer.Default.Equals(symbol.ContainingType, stubClassType))
                         {
