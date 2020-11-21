@@ -73,11 +73,7 @@ namespace DynamicPropertyGenerator
         {
             IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
 
-            var getArguments = new List<Argument> {
-                new(type.ToString(), "obj"),
-                new("string", "name"),
-                new("bool", "ignoreCasing", "false"),
-            };
+            Argument[] getArguments = GetMethodArguments(type.ToString());
 
             string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
 
@@ -121,12 +117,7 @@ namespace DynamicPropertyGenerator
         {
             IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
 
-            var setArguments = new List<Argument> {
-                new(type.ToString(), "obj"),
-                new("string", "name"),
-                new("string", "value"),
-                new("bool", "ignoreCasing", "false"),
-            };
+            Argument[] setArguments = SetMethodArguments(type.ToString());
 
             void ifBody(BodyWriter ifBodyWriter)
             {
@@ -201,31 +192,26 @@ namespace DynamicPropertyGenerator
             return setMethod;
         }
 
-        private static Method StubGetMethod()
-        {
-            var getArguments = new List<Argument> {
-                new("object", "obj"),
+        private static Method StubGetMethod() => new Method(Accessibility.Public, true, false, "object", "Get", GetMethodArguments("object"), ReturnNewObjectWriter);
+
+        private static Method StubSetMethod() => new Method(Accessibility.Public, true, false, "object", "Set", SetMethodArguments("object"), string.Empty);
+
+        private static Argument[] GetMethodArguments(string type) => new Argument[]
+            {
+                new(type, "obj"),
                 new("string", "name"),
                 new("bool", "ignoreCasing", "false"),
             };
 
-            return new Method(Accessibility.Public, true, false, "object", "Get", getArguments, (getBodyWriter) =>
+        private static Argument[] SetMethodArguments(string type) => new Argument[]
             {
-                getBodyWriter.WriteReturn("new object()");
-            });
-        }
-
-        private static Method StubSetMethod()
-        {
-            var setArguments = new List<Argument> {
-                new("object", "obj"),
+                new(type, "obj"),
                 new("string", "name"),
                 new("string", "value"),
                 new("bool", "ignoreCasing", "false"),
             };
 
-            return new Method(Accessibility.Public, true, false, "object", "Set", setArguments, string.Empty);
-        }
+        private static void ReturnNewObjectWriter(BodyWriter bodyWriter) => bodyWriter.WriteReturn("new object()");
 
         private static Compilation GetStubCompilation(GeneratorExecutionContext context, Class stubClass)
         {
