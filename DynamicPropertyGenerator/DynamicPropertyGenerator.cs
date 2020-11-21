@@ -32,7 +32,7 @@ namespace DynamicPropertyGenerator
 
             IEnumerable<ITypeSymbol> calls = GetStubCalls(compilation, stubClassType);
 
-            Class c = new Class(className)
+            Class generatedClass = new Class(className)
                 .SetStatic(true)
                 .SetNamespace(ns)
                 .WithAccessibility(Accessibility.Internal);
@@ -53,13 +53,13 @@ namespace DynamicPropertyGenerator
                         continue;
                     }
 
-                    c = c.WithMethod(BuildGetMethod(type))
-                     .WithMethod(BuildSetMethod(type));
+                    generatedClass = generatedClass.WithMethod(BuildGetMethod(type))
+                                                   .WithMethod(BuildSetMethod(type));
 
                     generatedTypes.Add(type);
                 }
 
-                string str = ClassWriter.Write(c);
+                string str = ClassWriter.Write(generatedClass);
 
                 context.AddSource(className, SourceText.From(str, Encoding.UTF8));
             }
@@ -79,35 +79,37 @@ namespace DynamicPropertyGenerator
                 new("bool", "ignoreCasing", "false"),
             };
 
+            string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
+
+            void ifBody(BodyWriter ifBodyWriter)
+            {
+                var caseExpressions = new List<CaseExpression>();
+
+                foreach (IPropertySymbol prop in properties)
+                {
+                    var caseExpression = new CaseExpression($"\"{prop.Name.ToLower()}\"", $"{getArguments[0].Name}.{prop.Name}");
+                    caseExpressions.Add(caseExpression);
+                }
+
+                ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{getArguments[1].Name}.ToLower()", caseExpressions, noPropertyException));
+            }
+
+            void elseBody(BodyWriter elseBodyWriter)
+            {
+                var caseStatements = new List<CaseExpression>();
+
+                foreach (IPropertySymbol prop in properties)
+                {
+                    var caseStatement = new CaseExpression($"\"{prop.Name}\"", $"{getArguments[0].Name}.{prop.Name}");
+                    caseStatements.Add(caseStatement);
+                }
+
+                elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(getArguments[1].Name, caseStatements, noPropertyException));
+            }
+
             var getMethod = new Method(Accessibility.Public, true, false, "object", "Get", getArguments, (getBodyWriter) =>
             {
-                string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
-
-                var ifCasing = new IfStatement(new If(getArguments[2].Name,
-                    (ifBodyWriter) =>
-                    {
-                        var caseExpressions = new List<CaseExpression>();
-
-                        foreach (IPropertySymbol prop in properties)
-                        {
-                            var caseExpression = new CaseExpression($"\"{prop.Name.ToLower()}\"", $"{getArguments[0].Name}.{prop.Name}");
-                            caseExpressions.Add(caseExpression);
-                        }
-
-                        ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{getArguments[1].Name}.ToLower()", caseExpressions, noPropertyException));
-                    }),
-                    (elseBodyWriter) =>
-                    {
-                        var caseStatements = new List<CaseExpression>();
-
-                        foreach (IPropertySymbol prop in properties)
-                        {
-                            var caseStatement = new CaseExpression($"\"{prop.Name}\"", $"{getArguments[0].Name}.{prop.Name}");
-                            caseStatements.Add(caseStatement);
-                        }
-
-                        elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(getArguments[1].Name, caseStatements, noPropertyException));
-                    });
+                var ifCasing = new IfStatement(new If(getArguments[2].Name, ifBody), elseBody);
 
                 getBodyWriter.WriteIf(ifCasing);
             });
