@@ -24,7 +24,7 @@ namespace DynamicPropertyGenerator
                 .SetStatic(true)
                 .SetNamespace(ns)
                 .WithAccessibility(Accessibility.Internal)
-                .WithMethod(StubGetMethod())
+                .WithMethod(DynamicGetMethod.Stub())
                 .WithMethod(StubSetMethod());
 
             Compilation compilation = GetStubCompilation(context, stubClass);
@@ -53,7 +53,9 @@ namespace DynamicPropertyGenerator
                         continue;
                     }
 
-                    generatedClass = generatedClass.WithMethod(BuildGetMethod(type))
+                    var dynamicGetMethod = new DynamicGetMethod(type);
+
+                    generatedClass = generatedClass.WithMethod(dynamicGetMethod.Build())
                                                    .WithMethod(BuildSetMethod(type));
 
                     generatedTypes.Add(type);
@@ -67,50 +69,6 @@ namespace DynamicPropertyGenerator
             {
                 context.AddSource(stubClass.ClassName, SourceText.From(ClassWriter.Write(stubClass), Encoding.UTF8));
             }
-        }
-
-        private static Method BuildGetMethod(ITypeSymbol type)
-        {
-            IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
-
-            Argument[] getArguments = GetMethodArguments(type.ToString());
-
-            string noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({getArguments[1].Name}), $\"Type '{type}' has no property of name '{{{getArguments[1].Name}}}'\")";
-
-            void ifBody(BodyWriter ifBodyWriter)
-            {
-                var caseExpressions = new List<CaseExpression>();
-
-                foreach (IPropertySymbol prop in properties)
-                {
-                    var caseExpression = new CaseExpression($"\"{prop.Name.ToLower()}\"", $"{getArguments[0].Name}.{prop.Name}");
-                    caseExpressions.Add(caseExpression);
-                }
-
-                ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{getArguments[1].Name}.ToLower()", caseExpressions, noPropertyException));
-            }
-
-            void elseBody(BodyWriter elseBodyWriter)
-            {
-                var caseStatements = new List<CaseExpression>();
-
-                foreach (IPropertySymbol prop in properties)
-                {
-                    var caseStatement = new CaseExpression($"\"{prop.Name}\"", $"{getArguments[0].Name}.{prop.Name}");
-                    caseStatements.Add(caseStatement);
-                }
-
-                elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(getArguments[1].Name, caseStatements, noPropertyException));
-            }
-
-            var getMethod = new Method(Accessibility.Public, true, false, "object", "Get", getArguments, (getBodyWriter) =>
-            {
-                var ifCasing = new IfStatement(new If(getArguments[2].Name, ifBody), elseBody);
-
-                getBodyWriter.WriteIf(ifCasing);
-            });
-
-            return getMethod;
         }
 
         private static Method BuildSetMethod(ITypeSymbol type)
@@ -192,16 +150,7 @@ namespace DynamicPropertyGenerator
             return setMethod;
         }
 
-        private static Method StubGetMethod() => new Method(Accessibility.Public, true, false, "object", "Get", GetMethodArguments("object"), ReturnNewObjectWriter);
-
         private static Method StubSetMethod() => new Method(Accessibility.Public, true, false, "object", "Set", SetMethodArguments("object"), string.Empty);
-
-        private static Argument[] GetMethodArguments(string type) => new Argument[]
-            {
-                new(type, "obj"),
-                new("string", "name"),
-                new("bool", "ignoreCasing", "false"),
-            };
 
         private static Argument[] SetMethodArguments(string type) => new Argument[]
             {
@@ -210,8 +159,6 @@ namespace DynamicPropertyGenerator
                 new("string", "value"),
                 new("bool", "ignoreCasing", "false"),
             };
-
-        private static void ReturnNewObjectWriter(BodyWriter bodyWriter) => bodyWriter.WriteReturn("new object()");
 
         private static Compilation GetStubCompilation(GeneratorExecutionContext context, Class stubClass)
         {
