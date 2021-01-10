@@ -16,15 +16,15 @@ namespace DynamicPropertyGenerator
         private readonly ITypeSymbol _type;
         private readonly ImmutableArray<Argument> _arguments;
         private readonly Lazy<ImmutableArray<IPropertySymbol>> _properties;
-        private readonly Lazy<string> _noPropertyException;
+        private readonly string _noPropertyException;
 
         public DynamicGetMethod(ITypeSymbol type)
         {
             _type = type;
             _arguments = Arguments(type.ToString()).ToImmutableArray();
+            _noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({_arguments[1].Name}), $\"Type '{_type}' has no property of name '{{{_arguments[1].Name}}}'\")";
 
             _properties = new Lazy<ImmutableArray<IPropertySymbol>>(() => _type.GetAccessibleProperties().ToImmutableArray());
-            _noPropertyException = new Lazy<string>(() => $"throw new System.ArgumentOutOfRangeException(nameof({_arguments[1].Name}), $\"Type '{_type}' has no property of name '{{{_arguments[1].Name}}}'\")");
         }
 
         private static Argument[] Arguments(string type) => new Argument[]
@@ -45,7 +45,7 @@ namespace DynamicPropertyGenerator
                 caseExpressions.Add(caseExpression);
             }
 
-            ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{_arguments[1].Name}.ToLower()", caseExpressions, _noPropertyException.Value));
+            ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{_arguments[1].Name}.ToLower()", caseExpressions, _noPropertyException));
         }
 
         private void ElseBody(BodyWriter elseBodyWriter)
@@ -58,7 +58,7 @@ namespace DynamicPropertyGenerator
                 caseStatements.Add(caseStatement);
             }
 
-            elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(_arguments[1].Name, caseStatements, _noPropertyException.Value));
+            elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(_arguments[1].Name, caseStatements, _noPropertyException));
         }
 
         public Method Build()
