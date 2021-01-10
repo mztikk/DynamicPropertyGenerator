@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using DynamicPropertyGenerator.Extensions;
 using Microsoft.CodeAnalysis;
@@ -14,13 +15,16 @@ namespace DynamicPropertyGenerator
 
         private readonly ITypeSymbol _type;
         private readonly ImmutableArray<Argument> _arguments;
-        private ImmutableArray<IPropertySymbol> _properties;
-        private string _noPropertyException;
+        private readonly Lazy<ImmutableArray<IPropertySymbol>> _properties;
+        private readonly Lazy<string> _noPropertyException;
 
         public DynamicGetMethod(ITypeSymbol type)
         {
             _type = type;
             _arguments = Arguments(type.ToString()).ToImmutableArray();
+
+            _properties = new Lazy<ImmutableArray<IPropertySymbol>>(() => _type.GetAccessibleProperties().ToImmutableArray());
+            _noPropertyException = new Lazy<string>(() => $"throw new System.ArgumentOutOfRangeException(nameof({_arguments[1].Name}), $\"Type '{_type}' has no property of name '{{{_arguments[1].Name}}}'\")");
         }
 
         private static Argument[] Arguments(string type) => new Argument[]
@@ -35,33 +39,30 @@ namespace DynamicPropertyGenerator
         {
             var caseExpressions = new List<CaseExpression>();
 
-            foreach (IPropertySymbol prop in _properties)
+            foreach (IPropertySymbol prop in _properties.Value)
             {
                 var caseExpression = new CaseExpression($"\"{prop.Name.ToLower()}\"", $"{_arguments[0].Name}.{prop.Name}");
                 caseExpressions.Add(caseExpression);
             }
 
-            ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{_arguments[1].Name}.ToLower()", caseExpressions, _noPropertyException));
+            ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"{_arguments[1].Name}.ToLower()", caseExpressions, _noPropertyException.Value));
         }
 
         private void ElseBody(BodyWriter elseBodyWriter)
         {
             var caseStatements = new List<CaseExpression>();
 
-            foreach (IPropertySymbol prop in _properties)
+            foreach (IPropertySymbol prop in _properties.Value)
             {
                 var caseStatement = new CaseExpression($"\"{prop.Name}\"", $"{_arguments[0].Name}.{prop.Name}");
                 caseStatements.Add(caseStatement);
             }
 
-            elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(_arguments[1].Name, caseStatements, _noPropertyException));
+            elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression(_arguments[1].Name, caseStatements, _noPropertyException.Value));
         }
 
         public Method Build()
         {
-            _properties = _type.GetAccessibleProperties().ToImmutableArray();
-            _noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({_arguments[1].Name}), $\"Type '{_type}' has no property of name '{{{_arguments[1].Name}}}'\")";
-
             var ifCasing = new IfStatement(new If(_arguments[2].Name, IfBody), ElseBody);
 
             return new Method(Accessibility.Public, true, false, ReturnType, MethodName, _arguments, (getBodyWriter) => getBodyWriter.WriteIf(ifCasing));
