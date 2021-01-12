@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using DynamicPropertyGenerator.Extensions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -25,7 +24,7 @@ namespace DynamicPropertyGenerator
                 .SetNamespace(ns)
                 .WithAccessibility(Accessibility.Internal)
                 .WithMethod(DynamicGetMethod.Stub())
-                .WithMethod(StubSetMethod());
+                .WithMethod(DynamicSetMethod.Stub());
 
             Compilation compilation = GetStubCompilation(context, stubClass);
             INamedTypeSymbol stubClassType = compilation.GetTypeByMetadataName(fullName);
@@ -54,9 +53,10 @@ namespace DynamicPropertyGenerator
                     }
 
                     var dynamicGetMethod = new DynamicGetMethod(type);
+                    var dynamicSetMethod = new DynamicSetMethod(type);
 
                     generatedClass = generatedClass.WithMethod(dynamicGetMethod.Build())
-                                                   .WithMethod(BuildSetMethod(type));
+                                                   .WithMethod(dynamicSetMethod.Build());
 
                     generatedTypes.Add(type);
                 }
@@ -70,95 +70,6 @@ namespace DynamicPropertyGenerator
                 context.AddSource(stubClass.ClassName, SourceText.From(ClassWriter.Write(stubClass), Encoding.UTF8));
             }
         }
-
-        private static Method BuildSetMethod(ITypeSymbol type)
-        {
-            IEnumerable<IPropertySymbol> properties = type.GetAccessibleProperties();
-
-            Argument[] setArguments = SetMethodArguments(type.ToString());
-
-            void ifBody(BodyWriter ifBodyWriter)
-            {
-                var caseStatements = new List<CaseStatement>();
-                foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
-                {
-                    string fullTypeName = prop.Type.ToString().TrimEnd('?');
-
-                    var caseStatement = new CaseStatement($"\"{prop.Name.ToLower()}\"", (caseWriter) =>
-                    {
-                        string value;
-                        if (prop.Type.Name == "String")
-                        {
-                            value = setArguments[2].Name;
-                        }
-                        else
-                        {
-                            value = $"{fullTypeName}.Parse({setArguments[2].Name})";
-                        }
-
-                        caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
-                        caseWriter.WriteBreak();
-                    });
-                    caseStatements.Add(caseStatement);
-                }
-
-                ifBodyWriter.WriteSwitchCaseStatement(
-                    new SwitchCaseStatement(
-                        $"{setArguments[1].Name}.ToLower()",
-                        caseStatements,
-                        $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
-            }
-
-            void elseBody(BodyWriter elseBodyWriter)
-            {
-                var caseStatements = new List<CaseStatement>();
-                foreach (IPropertySymbol prop in properties.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
-                {
-                    string fullTypeName = prop.Type.ToString().TrimEnd('?');
-
-                    var caseStatement = new CaseStatement($"\"{prop.Name}\"", (caseWriter) =>
-                    {
-                        string value;
-                        if (prop.Type.Name == "String")
-                        {
-                            value = setArguments[2].Name;
-                        }
-                        else
-                        {
-                            value = $"{fullTypeName}.Parse({setArguments[2].Name})";
-                        }
-
-                        caseWriter.WriteAssignment($"{setArguments[0].Name}.{prop.Name}", value);
-                        caseWriter.WriteBreak();
-                    });
-                    caseStatements.Add(caseStatement);
-
-                }
-
-                elseBodyWriter.WriteSwitchCaseStatement(new SwitchCaseStatement(
-                    setArguments[1].Name, caseStatements,
-                    $"throw new System.ArgumentOutOfRangeException(nameof({setArguments[1].Name}), $\"Type '{type}' has no property of name '{{{setArguments[1].Name}}}'\");"));
-            }
-
-            var setMethod = new Method(Accessibility.Public, true, false, "void", "Set", setArguments, (setBodyWriter) =>
-            {
-                var ifCasing = new IfStatement(new If(setArguments[3].Name, ifBody), elseBody);
-
-                setBodyWriter.WriteIf(ifCasing);
-            });
-
-            return setMethod;
-        }
-
-        private static Method StubSetMethod() => new Method(Accessibility.Public, true, false, "object", "Set", SetMethodArguments("object"), string.Empty);
-
-        private static Argument[] SetMethodArguments(string type) => new Argument[]
-            {
-                new(type, "obj"),
-                new("string", "name"),
-                new("string", "value"),
-                new("bool", "ignoreCasing", "false"),
-            };
 
         private static Compilation GetStubCompilation(GeneratorExecutionContext context, Class stubClass)
         {

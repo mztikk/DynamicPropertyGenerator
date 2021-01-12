@@ -63,11 +63,13 @@ namespace DynamicPropertyGenerator
 
         public Method Build()
         {
-            var ifCasing = new IfStatement(new If(_arguments[2].Name, IfBody), ElseBody);
+            var ifStmt = new IfStatement(new If(_arguments[2].Name, IfBody), ElseBody);
 
-            return new Method(Accessibility.Public, true, false, ReturnType, MethodName, _arguments, (getBodyWriter) => getBodyWriter.WriteIf(ifCasing));
+            return GetMethod(_arguments, (getBodyWriter) => getBodyWriter.WriteIf(ifStmt));
         }
 
-        public static Method Stub() => new Method(Accessibility.Public, true, false, "object", "Get", Arguments("object"), (BodyWriter bodyWriter) => bodyWriter.WriteReturn("new object()"));
+        public static Method Stub() => GetMethod(Arguments("object"), (BodyWriter bodyWriter) => bodyWriter.WriteReturn("new object()"));
+
+        private static Method GetMethod(IEnumerable<Argument> arguments, Action<BodyWriter> body) => new Method(Accessibility.Public, true, false, ReturnType, MethodName, arguments, body);
     }
 }
