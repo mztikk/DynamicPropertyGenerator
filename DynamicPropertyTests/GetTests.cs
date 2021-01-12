@@ -34,5 +34,17 @@ namespace DynamicPropertyTests
 
             Assert.AreEqual(value, DynamicProperty.Get(testClass, nameof(DynamicTestClass.IntProperty)));
         }
+
+        [DataTestMethod]
+        [DataRow("max", "mustermann")]
+        public void GetPerson(string name, string lastname)
+        {
+            var testClass = new DynamicTestClass
+            {
+                PersonProperty = new Person { Name = name, LastName = lastname }
+            };
+
+            Assert.AreEqual(new Person { Name = name, LastName = lastname }, DynamicProperty.Get(testClass, nameof(DynamicTestClass.PersonProperty)));
+        }
     }
 }
