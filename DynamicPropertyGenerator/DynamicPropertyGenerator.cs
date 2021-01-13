@@ -24,7 +24,8 @@ namespace DynamicPropertyGenerator
                 .SetNamespace(ns)
                 .WithAccessibility(Accessibility.Internal)
                 .WithMethod(DynamicGetMethod.Stub())
-                .WithMethod(DynamicSetMethod.Stub());
+                .WithMethod(DynamicSetStringMethod.Stub())
+                .WithMethod(DynamicSetObjectMethod.Stub());
 
             Compilation compilation = GetStubCompilation(context, stubClass);
             INamedTypeSymbol stubClassType = compilation.GetTypeByMetadataName(fullName);
@@ -53,10 +54,12 @@ namespace DynamicPropertyGenerator
                     }
 
                     var dynamicGetMethod = new DynamicGetMethod(type);
-                    var dynamicSetMethod = new DynamicSetMethod(type);
+                    var dynamicSetStringMethod = new DynamicSetStringMethod(type);
+                    var dynamicSetObjectMethod = new DynamicSetObjectMethod(type);
 
                     generatedClass = generatedClass.WithMethod(dynamicGetMethod.Build())
-                                                   .WithMethod(dynamicSetMethod.Build());
+                                                   .WithMethod(dynamicSetStringMethod.Build())
+                                                   .WithMethod(dynamicSetObjectMethod.Build());
 
                     generatedTypes.Add(type);
                 }

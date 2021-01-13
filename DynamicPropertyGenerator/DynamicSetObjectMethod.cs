@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using DynamicPropertyGenerator.Extensions;
 using Microsoft.CodeAnalysis;
 using Sharpie;
@@ -9,7 +8,7 @@ using Sharpie.Writer;
 
 namespace DynamicPropertyGenerator
 {
-    internal class DynamicSetMethod
+    internal class DynamicSetObjectMethod
     {
         private const string MethodName = "Set";
         private const string ReturnType = "void";
@@ -19,7 +18,7 @@ namespace DynamicPropertyGenerator
         private readonly Lazy<ImmutableArray<IPropertySymbol>> _properties;
         private readonly string _noPropertyException;
 
-        public DynamicSetMethod(ITypeSymbol type)
+        public DynamicSetObjectMethod(ITypeSymbol type)
         {
             _type = type;
             _arguments = Arguments(type.ToString()).ToImmutableArray();
@@ -32,28 +31,20 @@ namespace DynamicPropertyGenerator
             {
                 new(type, "obj"),
                 new("string", "name"),
-                new("string", "value"),
+                new("object", "value"),
                 new("bool", "ignoreCasing", "false"),
             };
 
         private void IfBody(BodyWriter ifBodyWriter)
         {
             var caseStatements = new List<CaseStatement>();
-            foreach (IPropertySymbol prop in _properties.Value.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
+            foreach (IPropertySymbol prop in _properties.Value)
             {
                 string fullTypeName = prop.Type.ToString().TrimEnd('?');
 
                 var caseStatement = new CaseStatement($"\"{prop.Name.ToLower()}\"", (caseWriter) =>
                 {
-                    string value;
-                    if (prop.Type.Name == "String")
-                    {
-                        value = _arguments[2].Name;
-                    }
-                    else
-                    {
-                        value = $"{fullTypeName}.Parse({_arguments[2].Name})";
-                    }
+                    string value = $"({fullTypeName}){_arguments[2].Name}";
 
                     caseWriter.WriteAssignment($"{_arguments[0].Name}.{prop.Name}", value);
                     caseWriter.WriteBreak();
@@ -67,21 +58,13 @@ namespace DynamicPropertyGenerator
         private void ElseBody(BodyWriter elseBodyWriter)
         {
             var caseStatements = new List<CaseStatement>();
-            foreach (IPropertySymbol prop in _properties.Value.Where(prop => prop.Type.HasStringParse() || prop.Type.Name == "String"))
+            foreach (IPropertySymbol prop in _properties.Value)
             {
                 string fullTypeName = prop.Type.ToString().TrimEnd('?');
 
                 var caseStatement = new CaseStatement($"\"{prop.Name}\"", (caseWriter) =>
                 {
-                    string value;
-                    if (prop.Type.Name == "String")
-                    {
-                        value = _arguments[2].Name;
-                    }
-                    else
-                    {
-                        value = $"{fullTypeName}.Parse({_arguments[2].Name})";
-                    }
+                    string value = $"({fullTypeName}){_arguments[2].Name}";
 
                     caseWriter.WriteAssignment($"{_arguments[0].Name}.{prop.Name}", value);
                     caseWriter.WriteBreak();

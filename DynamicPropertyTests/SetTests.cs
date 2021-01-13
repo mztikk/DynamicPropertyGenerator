@@ -35,11 +35,22 @@ namespace DynamicPropertyTests
 
         [DataTestMethod]
         [DataRow("max", "mustermann")]
-        public void GetPerson(string name, string lastname)
+        public void SetPerson(string name, string lastname)
         {
             var testClass = new DynamicTestClass();
 
             DynamicProperty.Set(testClass, nameof(DynamicTestClass.PersonProperty), new Person { Name = name, LastName = lastname }.ToString());
+
+            Assert.AreEqual(new Person { Name = name, LastName = lastname }, testClass.PersonProperty);
+        }
+
+        [DataTestMethod]
+        [DataRow("max", "mustermann")]
+        public void SetPersonObject(string name, string lastname)
+        {
+            var testClass = new DynamicTestClass();
+
+            DynamicProperty.Set(testClass, nameof(DynamicTestClass.PersonProperty), new Person { Name = name, LastName = lastname });
 
             Assert.AreEqual(new Person { Name = name, LastName = lastname }, testClass.PersonProperty);
         }
