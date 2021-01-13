@@ -32,7 +32,7 @@ namespace DynamicPropertyTests
                 IntProperty = value
             };
 
-            Assert.AreEqual(value, DynamicProperty.Get(testClass, nameof(DynamicTestClass.IntProperty)));
+            Assert.AreEqual(value, testClass.Get(nameof(DynamicTestClass.IntProperty)));
         }
 
         [DataTestMethod]

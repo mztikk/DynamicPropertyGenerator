@@ -29,11 +29,10 @@ namespace DynamicPropertyGenerator
 
         private static Argument[] Arguments(string type) => new Argument[]
             {
-                new(type, "obj"),
+                new(type, "obj", true),
                 new("string", "name"),
                 new("bool", "ignoreCasing", "false"),
             };
-
 
         private void IfBody(BodyWriter ifBodyWriter)
         {

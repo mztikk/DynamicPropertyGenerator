@@ -29,7 +29,7 @@ namespace DynamicPropertyGenerator
 
         private static Argument[] Arguments(string type) => new Argument[]
             {
-                new(type, "obj"),
+                new(type, "obj", true),
                 new("string", "name"),
                 new("object", "value"),
                 new("bool", "ignoreCasing", "false"),
