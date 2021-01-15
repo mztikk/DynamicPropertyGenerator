@@ -1,3 +1,4 @@
+using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DynamicPropertyTests
@@ -5,6 +6,10 @@ namespace DynamicPropertyTests
     [TestClass]
     public class GetTests
     {
+        private readonly Random _random;
+
+        public GetTests() => _random = new Random();
+
         [DataTestMethod]
         [DataRow("test")]
         [DataRow("1234")]
@@ -33,6 +38,18 @@ namespace DynamicPropertyTests
             };
 
             Assert.AreEqual(value, testClass.Get(nameof(DynamicTestClass.IntProperty)));
+        }
+
+        [TestMethod]
+        public void GetRandomInt()
+        {
+            const int iterations = 10000;
+            for (int i = 0; i < iterations; i++)
+            {
+                int rnd = _random.Next();
+                var testClass = new DynamicTestClass { IntProperty = rnd };
+                Assert.AreEqual(rnd, testClass.Get(nameof(DynamicTestClass.IntProperty))); 
+            }
         }
 
         [DataTestMethod]
