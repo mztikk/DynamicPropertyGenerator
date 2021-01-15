@@ -8,7 +8,7 @@ namespace DynamicPropertyGenerator.Extensions
     {
         public static IEnumerable<IPropertySymbol> GetAccessibleProperties(this ITypeSymbol symbol)
         {
-            ITypeSymbol toGet = symbol;
+            ITypeSymbol? toGet = symbol;
             while (toGet is { })
             {
                 foreach (IPropertySymbol item in toGet.GetMembers()

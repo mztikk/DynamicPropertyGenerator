@@ -28,7 +28,7 @@ namespace DynamicPropertyGenerator
                 .WithMethod(DynamicSetObjectMethod.Stub());
 
             Compilation compilation = GetStubCompilation(context, stubClass);
-            INamedTypeSymbol stubClassType = compilation.GetTypeByMetadataName(fullName);
+            INamedTypeSymbol? stubClassType = compilation.GetTypeByMetadataName(fullName);
 
             IEnumerable<ITypeSymbol> calls = GetStubCalls(compilation, stubClassType);
 
@@ -83,8 +83,13 @@ namespace DynamicPropertyGenerator
             return compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(SourceText.From(ClassWriter.Write(stubClass), Encoding.UTF8), options));
         }
 
-        private static IEnumerable<ITypeSymbol> GetStubCalls(Compilation compilation, INamedTypeSymbol stubClassType)
+        private static IEnumerable<ITypeSymbol> GetStubCalls(Compilation compilation, INamedTypeSymbol? stubClassType)
         {
+            if (stubClassType is null)
+            {
+                yield break;
+            }
+
             foreach (SyntaxTree tree in compilation.SyntaxTrees)
             {
                 SemanticModel semanticModel = compilation.GetSemanticModel(tree);
@@ -95,7 +100,7 @@ namespace DynamicPropertyGenerator
                         if (SymbolEqualityComparer.Default.Equals(symbol.ContainingType, stubClassType))
                         {
                             ExpressionSyntax argument = invocation.ArgumentList.Arguments.First().Expression;
-                            ITypeSymbol argumentType = semanticModel.GetTypeInfo(argument).Type;
+                            ITypeSymbol? argumentType = semanticModel.GetTypeInfo(argument).Type;
                             if (argumentType is null)
                             {
                                 continue;
