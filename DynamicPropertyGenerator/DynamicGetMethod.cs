@@ -69,6 +69,6 @@ namespace DynamicPropertyGenerator
 
         public static Method Stub() => GetMethod(Arguments("object"), (BodyWriter bodyWriter) => bodyWriter.WriteReturn("new object()"));
 
-        private static Method GetMethod(IEnumerable<Argument> arguments, Action<BodyWriter> body) => new Method(Accessibility.Public, true, false, ReturnType, MethodName, arguments, body);
+        private static Method GetMethod(IEnumerable<Argument> arguments, Action<BodyWriter> body) => new(Accessibility.Public, true, false, ReturnType, MethodName, arguments, body);
     }
 }

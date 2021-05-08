@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DynamicPropertyTests
@@ -48,7 +49,7 @@ namespace DynamicPropertyTests
             {
                 int rnd = _random.Next();
                 var testClass = new DynamicTestClass { IntProperty = rnd };
-                Assert.AreEqual(rnd, testClass.Get(nameof(DynamicTestClass.IntProperty))); 
+                Assert.AreEqual(rnd, testClass.Get(nameof(DynamicTestClass.IntProperty)));
             }
         }
 
@@ -62,6 +63,18 @@ namespace DynamicPropertyTests
             };
 
             Assert.AreEqual(new Person { Name = name, LastName = lastname }, DynamicProperty.Get(testClass, nameof(DynamicTestClass.PersonProperty)));
+        }
+
+        [DataTestMethod]
+        [DataRow("hans")]
+        public void PropertyPath(string name)
+        {
+            var testClass = new DynamicTestClass
+            {
+                PersonProperty = new Person { Name = name }
+            };
+
+            Assert.AreEqual(name, DynamicProperty.Get(testClass, new Stack<string>(new string[] { "Name", "PersonProperty" })));
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using DynamicPropertyGenerator.Extensions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -24,6 +25,7 @@ namespace DynamicPropertyGenerator
                 .SetNamespace(ns)
                 .WithAccessibility(Accessibility.Internal)
                 .WithMethod(DynamicGetMethod.Stub())
+                .WithMethod(DynamicPathGetMethod.Stub())
                 .WithMethod(DynamicSetStringMethod.Stub())
                 .WithMethod(DynamicSetObjectMethod.Stub());
 
@@ -35,14 +37,18 @@ namespace DynamicPropertyGenerator
             Class generatedClass = new Class(className)
                 .SetStatic(true)
                 .SetNamespace(ns)
+                .SetPartial(true)
                 .WithAccessibility(Accessibility.Internal);
 
             var generatedTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
 
             if (calls.Any())
             {
-                foreach (ITypeSymbol type in calls)
+                var types = new Stack<ITypeSymbol>(calls);
+                while (types.Count > 0)
                 {
+                    ITypeSymbol? type = types.Pop();
+
                     if (type is null)
                     {
                         continue;
@@ -53,16 +59,53 @@ namespace DynamicPropertyGenerator
                         continue;
                     }
 
-                    var dynamicGetMethod = new DynamicGetMethod(type);
-                    var dynamicSetStringMethod = new DynamicSetStringMethod(type);
-                    var dynamicSetObjectMethod = new DynamicSetObjectMethod(type);
+                    generatedClass = generatedClass.WithMethod(new DynamicGetMethod(type).Build())
+                                                   .WithMethod(new DynamicPathGetMethod(type).Build())
+                                                   .WithMethod(new DynamicSetObjectMethod(type).Build())
+                                                   .WithMethod(new DynamicSetStringMethod(type).Build());
 
-                    generatedClass = generatedClass.WithMethod(dynamicGetMethod.Build())
-                                                   .WithMethod(dynamicSetStringMethod.Build())
-                                                   .WithMethod(dynamicSetObjectMethod.Build());
+                    foreach (IPropertySymbol prop in type.GetAccessibleProperties())
+                    {
+                        types.Push(prop.Type);
+                    }
 
                     generatedTypes.Add(type);
                 }
+
+                //foreach (ITypeSymbol type in calls)
+                //{
+                //    if (type is null)
+                //    {
+                //        continue;
+                //    }
+
+                //    if (generatedTypes.Contains(type))
+                //    {
+                //        continue;
+                //    }
+
+                //    var dynamicGetMethod = new DynamicGetMethod(type);
+                //    var dynamicPathGetMethod = new DynamicPathGetMethod(type);
+                //    var dynamicSetStringMethod = new DynamicSetStringMethod(type);
+                //    var dynamicSetObjectMethod = new DynamicSetObjectMethod(type);
+
+                //    generatedClass = generatedClass.WithMethod(dynamicGetMethod.Build())
+                //                                   .WithMethod(dynamicPathGetMethod.Build())
+                //                                   .WithMethod(dynamicSetStringMethod.Build())
+                //                                   .WithMethod(dynamicSetObjectMethod.Build());
+
+                //    //Class typedClass = new Class(className).SetStatic(true)
+                //    //                                       .SetNamespace(ns)
+                //    //                                       .SetPartial(true)
+                //    //                                       .WithAccessibility(Accessibility.Internal);
+
+                //    //var dynamicPathGetMethod = new DynamicPathGetMethod(type);
+                //    //typedClass = typedClass.WithMethod(dynamicPathGetMethod.Build());
+
+                //    //context.AddSource($"{typedClass.ClassName}.{type}", SourceText.From(ClassWriter.Write(typedClass), Encoding.UTF8));
+
+                //    generatedTypes.Add(type);
+                //}
 
                 string str = ClassWriter.Write(generatedClass);
 
