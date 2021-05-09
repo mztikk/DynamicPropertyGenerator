@@ -97,7 +97,7 @@ namespace DynamicPropertyTests
                 PersonProperty = new Person { Name = name }
             };
 
-            Assert.AreEqual(name, DynamicProperty.Get(testClass, new Stack<string>(new string[] { "Name", "PersonProperty" })));
+            Assert.AreEqual(name, DynamicProperty.Get(testClass, new Queue<string>(new string[] { "PersonProperty", "Name" })));
         }
     }
 }

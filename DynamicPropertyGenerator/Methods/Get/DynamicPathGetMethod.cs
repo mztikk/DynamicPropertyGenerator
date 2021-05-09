@@ -21,7 +21,7 @@ namespace DynamicPropertyGenerator.Methods.Get
         private static Parameter[] Arguments(string type) => new Parameter[]
             {
                 new(type, "obj", true),
-                new("System.Collections.Generic.Stack<string>", "path"),
+                new("System.Collections.Generic.Queue<string>", "path"),
                 new("bool", "ignoreCasing", "false"),
             };
 
@@ -63,7 +63,7 @@ namespace DynamicPropertyGenerator.Methods.Get
 
             return GetMethod(_arguments, (getBodyWriter) =>
             {
-                getBodyWriter.WriteVariable("name", $"{_arguments[1].Name}.Pop()");
+                getBodyWriter.WriteVariable("name", $"{_arguments[1].Name}.Dequeue()");
                 getBodyWriter.WriteIf(ifStmt);
             });
         }
