@@ -8,7 +8,6 @@ namespace DynamicPropertyTests
         public string StringProperty { get; set; }
         public int IntProperty { get; set; }
         public Person PersonProperty { get; set; }
-
     }
 
     public class Person : IEquatable<Person>

@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Text;
 using DynamicPropertyGenerator.Extensions;
+using DynamicPropertyGenerator.Methods;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -9,7 +10,7 @@ using Microsoft.CodeAnalysis.Text;
 using Sharpie;
 using Sharpie.Writer;
 
-namespace DynamicPropertyGenerator
+namespace DynamicPropertyGenerator.Generator
 {
     [Generator]
     public class DynamicPropertyGenerator : ISourceGenerator
@@ -17,28 +18,31 @@ namespace DynamicPropertyGenerator
         public void Execute(GeneratorExecutionContext context)
         {
             string ns = context.Compilation.AssemblyName ?? context.Compilation.ToString();
-            string className = $"DynamicProperty";
+            const string className = "DynamicProperty";
             string fullName = $"{ns}.{className}";
+
+            var methods = new IDynamicMethodBuilder[]
+            {
+                new DynamicGetMethod(),
+                new DynamicPathGetMethod(),
+                new DynamicSetObjectMethod(),
+                new DynamicSetStringMethod(),
+            };
 
             Class stubClass = new Class(className)
                 .SetStatic(true)
                 .SetNamespace(ns)
-                .WithAccessibility(Accessibility.Internal)
-                .WithMethod(DynamicGetMethod.Stub())
-                .WithMethod(DynamicPathGetMethod.Stub())
-                .WithMethod(DynamicSetStringMethod.Stub())
-                .WithMethod(DynamicSetObjectMethod.Stub());
+                .WithAccessibility(Accessibility.Internal);
+
+            foreach (IDynamicMethodBuilder method in methods)
+            {
+                stubClass = stubClass.WithMethod(method.Stub());
+            }
 
             Compilation compilation = GetStubCompilation(context, stubClass);
             INamedTypeSymbol? stubClassType = compilation.GetTypeByMetadataName(fullName);
 
             IEnumerable<ITypeSymbol> calls = GetStubCalls(compilation, stubClassType);
-
-            Class generatedClass = new Class(className)
-                .SetStatic(true)
-                .SetNamespace(ns)
-                .SetPartial(true)
-                .WithAccessibility(Accessibility.Internal);
 
             var generatedTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
 
@@ -59,10 +63,15 @@ namespace DynamicPropertyGenerator
                         continue;
                     }
 
-                    generatedClass = generatedClass.WithMethod(new DynamicGetMethod(type).Build())
-                                                   .WithMethod(new DynamicPathGetMethod(type).Build())
-                                                   .WithMethod(new DynamicSetObjectMethod(type).Build())
-                                                   .WithMethod(new DynamicSetStringMethod(type).Build());
+                    Class generatedClass = new Class(className).SetStatic(true)
+                                                               .SetNamespace(ns)
+                                                               .SetPartial(true)
+                                                               .WithAccessibility(Accessibility.Internal);
+
+                    foreach (IDynamicMethodBuilder method in methods)
+                    {
+                        generatedClass = generatedClass.WithMethod(method.Build(type));
+                    }
 
                     foreach (IPropertySymbol prop in type.GetAccessibleProperties())
                     {
@@ -70,46 +79,11 @@ namespace DynamicPropertyGenerator
                     }
 
                     generatedTypes.Add(type);
+
+                    string str = ClassWriter.Write(generatedClass);
+
+                    context.AddSource($"{className}.{type}", SourceText.From(str, Encoding.UTF8));
                 }
-
-                //foreach (ITypeSymbol type in calls)
-                //{
-                //    if (type is null)
-                //    {
-                //        continue;
-                //    }
-
-                //    if (generatedTypes.Contains(type))
-                //    {
-                //        continue;
-                //    }
-
-                //    var dynamicGetMethod = new DynamicGetMethod(type);
-                //    var dynamicPathGetMethod = new DynamicPathGetMethod(type);
-                //    var dynamicSetStringMethod = new DynamicSetStringMethod(type);
-                //    var dynamicSetObjectMethod = new DynamicSetObjectMethod(type);
-
-                //    generatedClass = generatedClass.WithMethod(dynamicGetMethod.Build())
-                //                                   .WithMethod(dynamicPathGetMethod.Build())
-                //                                   .WithMethod(dynamicSetStringMethod.Build())
-                //                                   .WithMethod(dynamicSetObjectMethod.Build());
-
-                //    //Class typedClass = new Class(className).SetStatic(true)
-                //    //                                       .SetNamespace(ns)
-                //    //                                       .SetPartial(true)
-                //    //                                       .WithAccessibility(Accessibility.Internal);
-
-                //    //var dynamicPathGetMethod = new DynamicPathGetMethod(type);
-                //    //typedClass = typedClass.WithMethod(dynamicPathGetMethod.Build());
-
-                //    //context.AddSource($"{typedClass.ClassName}.{type}", SourceText.From(ClassWriter.Write(typedClass), Encoding.UTF8));
-
-                //    generatedTypes.Add(type);
-                //}
-
-                string str = ClassWriter.Write(generatedClass);
-
-                context.AddSource(className, SourceText.From(str, Encoding.UTF8));
             }
             else
             {
