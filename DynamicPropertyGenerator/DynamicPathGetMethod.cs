@@ -16,13 +16,13 @@ namespace DynamicPropertyGenerator
         private readonly ITypeSymbol _type;
         private readonly ImmutableArray<Argument> _arguments;
         private readonly Lazy<ImmutableArray<IPropertySymbol>> _properties;
-        //private readonly string _noPropertyException;
+        private readonly string _noPropertyException;
 
         public DynamicPathGetMethod(ITypeSymbol type)
         {
             _type = type;
             _arguments = Arguments(type.ToString()).ToImmutableArray();
-            //_noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({_arguments[1].Name}), $\"Type '{_type}' has no property of name '{{{_arguments[1].Name}}}'\")";
+            _noPropertyException = $"throw new System.ArgumentException($\"No property '{{name}}' found in type '{_type}'\", nameof({_arguments[1].Name}))";
 
             _properties = new Lazy<ImmutableArray<IPropertySymbol>>(() => _type.GetAccessibleProperties().ToImmutableArray());
         }
@@ -44,7 +44,7 @@ namespace DynamicPropertyGenerator
                 caseExpressions.Add(caseExpression);
             }
 
-            ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"name.ToLower()", caseExpressions, "throw new System.ArgumentOutOfRangeException()"));
+            ifBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression($"name.ToLower()", caseExpressions, _noPropertyException));
         }
 
         private void CaseSensitive(BodyWriter elseBodyWriter)
@@ -57,7 +57,7 @@ namespace DynamicPropertyGenerator
                 caseExpressions.Add(caseExpression);
             }
 
-            elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression("name", caseExpressions, "throw new System.ArgumentOutOfRangeException()"));
+            elseBodyWriter.WriteReturnSwitchExpression(new SwitchCaseExpression("name", caseExpressions, _noPropertyException));
         }
 
         public Method Build()

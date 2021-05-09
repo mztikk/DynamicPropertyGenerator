@@ -22,7 +22,7 @@ namespace DynamicPropertyGenerator
         {
             _type = type;
             _arguments = Arguments(type.ToString()).ToImmutableArray();
-            _noPropertyException = $"throw new System.ArgumentOutOfRangeException(nameof({_arguments[1].Name}), $\"Type '{_type}' has no property of name '{{{_arguments[1].Name}}}'\")";
+            _noPropertyException = $"throw new System.ArgumentException($\"No property '{{{_arguments[1].Name}}}' found in type '{_type}'\", nameof({_arguments[1].Name}))";
 
             _properties = new Lazy<ImmutableArray<IPropertySymbol>>(() => _type.GetAccessibleProperties().ToImmutableArray());
         }
