@@ -29,6 +29,7 @@ namespace DynamicPropertyGenerator.Generator
                 new DynamicPathGetMethod(),
                 new DynamicSetObjectMethod(),
                 new DynamicSetStringMethod(),
+                new DynamicPathSetStringMethod(),
             };
 
             Class stubClass = new Class(className)
