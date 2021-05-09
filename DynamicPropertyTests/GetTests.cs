@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using DynamicPropertyTests.Model;
+using DynamicPropertyTestsModel;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DynamicPropertyTests
@@ -24,6 +26,27 @@ namespace DynamicPropertyTests
             };
 
             Assert.AreEqual(value, DynamicProperty.Get(testClass, nameof(DynamicTestClass.StringProperty)));
+        }
+
+        [DataTestMethod]
+        [DataRow("test")]
+        [DataRow("1234")]
+        [DataRow("test1234")]
+        [DataRow("üäöß!ß'\"}{]12391784´°!§&%")]
+        public void GetStringExternalClass(string value)
+        {
+            var model = new ModelClass
+            {
+                ModelName = value
+            };
+
+            var model2 = new ModelClass2
+            {
+                ModelName = value
+            };
+
+            Assert.AreEqual(value, DynamicProperty.Get(model, nameof(model.ModelName)));
+            Assert.AreEqual(value, DynamicProperty.Get(model2, nameof(model2.ModelName)));
         }
 
         [DataTestMethod]

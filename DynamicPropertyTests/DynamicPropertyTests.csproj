@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DynamicPropertyGenerator\DynamicPropertyGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DynamicPropertyTests.Model\DynamicPropertyTests.Model.csproj" />
   </ItemGroup>
 
 </Project>
