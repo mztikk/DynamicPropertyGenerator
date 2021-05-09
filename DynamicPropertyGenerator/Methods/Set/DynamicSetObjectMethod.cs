@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 using Sharpie;
 using Sharpie.Writer;
 
-namespace DynamicPropertyGenerator.Methods
+namespace DynamicPropertyGenerator.Methods.Set
 {
     internal class DynamicSetObjectMethod : IDynamicMethodBuilder
     {

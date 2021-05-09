@@ -3,6 +3,8 @@ using System.Linq;
 using System.Text;
 using DynamicPropertyGenerator.Extensions;
 using DynamicPropertyGenerator.Methods;
+using DynamicPropertyGenerator.Methods.Get;
+using DynamicPropertyGenerator.Methods.Set;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
